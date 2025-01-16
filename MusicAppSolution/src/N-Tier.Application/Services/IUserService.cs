@@ -12,5 +12,5 @@ public interface IUserService
     Task<UserDto> UpdateUserAsync(Guid id, UpdateUserDto updateUserDto);
     Task<AuthorizationUserDto> AuthenticateAsync(LoginDto loginDto);
     Task<(Guid userId, string message)> InitiateUserRegistrationAsync(UserDto userDto);
-    Task<UserResponceDto> VerifyAndCompleteRegistrationAsync(Guid userId, string otpCode, Guid tariffTypeId);
+    Task<(UserResponceDto user, string accessToken, string refreshToken)> VerifyAndCompleteRegistrationAsync(Guid userId, string otpCode, Guid tariffTypeId);
 }

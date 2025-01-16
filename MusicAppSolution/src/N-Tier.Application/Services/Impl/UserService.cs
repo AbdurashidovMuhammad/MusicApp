@@ -11,6 +11,7 @@ using SendGrid.Helpers.Mail;
 using N_Tier.Application.DataTransferObjects;
 using Microsoft.Extensions.Options;
 using FluentValidation.Results;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace N_Tier.Application.Services.Impl;
 
@@ -23,6 +24,7 @@ public class UserService : IUserService
     private readonly IValidator<LoginDto> _loginValidator;
     private readonly IValidator<UpdateUserDto> _updateUserValidator;
     private readonly IOtpRepository _otpRepository;
+    private readonly IJwtTokenHandler _jwtTokenHandler;
 
     public UserService(IUserRepository userRepository,
                        IPasswordHasher passwordHasher,
@@ -30,7 +32,8 @@ public class UserService : IUserService
                        IValidator<LoginDto> loginValidator,
                        IValidator<UpdateUserDto> updateUserValidator,
                        IOtpRepository otpRepository,
-                       IOptions<SmtpSettings> smtpSettings)
+                       IOptions<SmtpSettings> smtpSettings,
+                       IJwtTokenHandler jwtTokenHandler)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
@@ -39,6 +42,7 @@ public class UserService : IUserService
         _updateUserValidator = updateUserValidator;
         _otpRepository = otpRepository;
         _smtpSettings = smtpSettings.Value;
+        _jwtTokenHandler = jwtTokenHandler;
     }
 
     private async Task SendOtpEmailAsync(string email, string otpCode)
@@ -178,8 +182,7 @@ IsUsed: {newOtp.IsUsed}");
     }
 
 
-
-    public async Task<UserResponceDto> VerifyAndCompleteRegistrationAsync(Guid userId, string otpCode, Guid tariffTypeId)
+    public async Task<(UserResponceDto user, string accessToken, string refreshToken)> VerifyAndCompleteRegistrationAsync(Guid userId, string otpCode, Guid tariffTypeId)
     {
         try
         {
@@ -213,18 +216,34 @@ IsUsed: {newOtp.IsUsed}");
             {
                 UserId = user.Id,
                 Name = user.Name,
-                TariffTypeId = tariffTypeId // Set default tariff or use provided one
+                TariffTypeId = tariffTypeId
             };
             user.Accounts = new List<Accounts> { account };
             await _userRepository.UpdateAsync(user);
 
-            return new UserResponceDto
+            // Generate tokens
+            var authUser = new AuthorizationUserDto
             {
-                Name = user.Name,
+                Id = user.Id,
                 Email = user.Email,
-                Role = user.Role.ToString(),
-                TariffId = account.TariffTypeId
+                Role = user.Role,
+                Password = user.Password
             };
+
+            var jwtToken = await _jwtTokenHandler.GenerateAccessToken(authUser);
+            var refreshToken = _jwtTokenHandler.GenerateRefreshToken();
+
+            return (
+                new UserResponceDto
+                {
+                    Name = user.Name,
+                    Email = user.Email,
+                    Role = user.Role.ToString(),
+                    TariffId = account.TariffTypeId
+                },
+                new JwtSecurityTokenHandler().WriteToken(jwtToken),
+                refreshToken
+            );
         }
         catch (Exception ex)
         {

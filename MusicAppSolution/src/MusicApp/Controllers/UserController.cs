@@ -85,8 +85,19 @@ namespace MusicApp.Controllers
 
             try
             {
-                var user = await _userService.VerifyAndCompleteRegistrationAsync(dto.UserId, dto.OtpCode, dto.TariffTypeId);
-                return Ok(new { Message = "Registration completed successfully", User = user });
+                var (user, accessToken, refreshToken) = await _userService.VerifyAndCompleteRegistrationAsync(
+                    dto.UserId,
+                    dto.OtpCode,
+                    dto.TariffTypeId
+                );
+
+                return Ok(new
+                {
+                    Message = "Registration completed successfully",
+                    User = user,
+                    AccessToken = accessToken,
+                    RefreshToken = refreshToken
+                });
             }
             catch (Exception ex)
             {
